@@ -2,9 +2,12 @@ module etcd-raft-sync-example
 
 go 1.15
 
+replace github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.0.0
+
 require (
 	github.com/coreos/etcd v3.3.25+incompatible
 	github.com/coreos/go-semver v0.3.0 // indirect
+	github.com/coreos/go-systemd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
