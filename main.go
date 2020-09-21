@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/coreos/etcd/raft/raftpb"
+	"go.etcd.io/etcd/pkg/wait"
 )
 
 func main() {
@@ -36,10 +37,11 @@ func main() {
 	// raft provides a commit stream for the proposals from the http api
 	var kvs *kvstore
 	getSnapshot := func() ([]byte, error) { return kvs.getSnapshot() }
-	commitC, errorC, snapshotterReady := newRaftNode(*id, strings.Split(*cluster, ","), *join, getSnapshot, proposeC, confChangeC)
+	w := wait.New()
+	commitC, errorC, snapshotterReady, raftNode := newRaftNode(*id, strings.Split(*cluster, ","), *join, getSnapshot, proposeC, confChangeC)
 
-	kvs = newKVStore(<-snapshotterReady, proposeC, commitC, errorC)
+	kvs = newKVStore(<-snapshotterReady, proposeC, commitC, errorC, w)
 
 	// the key-value http handler will propose updates to raft
-	serveHttpKVAPI(kvs, *kvport, confChangeC, errorC)
+	serveHttpKVAPI(kvs, *kvport, confChangeC, errorC, raftNode, w)
 }

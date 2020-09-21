@@ -21,6 +21,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/coreos/etcd/pkg/wait"
 	"github.com/coreos/etcd/snap"
 )
 
@@ -30,15 +31,17 @@ type kvstore struct {
 	mu          sync.RWMutex
 	kvStore     map[string]string // current committed key-value pairs
 	snapshotter *snap.Snapshotter
+	W           wait.Wait
 }
 
 type kv struct {
+	ID  uint64
 	Key string
 	Val string
 }
 
-func newKVStore(snapshotter *snap.Snapshotter, proposeC chan<- string, commitC <-chan *string, errorC <-chan error) *kvstore {
-	s := &kvstore{proposeC: proposeC, kvStore: make(map[string]string), snapshotter: snapshotter}
+func newKVStore(snapshotter *snap.Snapshotter, proposeC chan<- string, commitC <-chan *string, errorC <-chan error, w wait.Wait) *kvstore {
+	s := &kvstore{proposeC: proposeC, kvStore: make(map[string]string), snapshotter: snapshotter, W: w}
 	// replay log into key-value map
 	s.readCommits(commitC, errorC)
 	// read commits from raft into kvStore map until error
@@ -55,7 +58,7 @@ func (s *kvstore) Lookup(key string) (string, bool) {
 
 func (s *kvstore) Propose(k string, v string) {
 	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(kv{k, v}); err != nil {
+	if err := gob.NewEncoder(&buf).Encode(kv{Key: k, Val: v}); err != nil {
 		log.Fatal(err)
 	}
 	s.proposeC <- buf.String()
@@ -88,6 +91,7 @@ func (s *kvstore) readCommits(commitC <-chan *string, errorC <-chan error) {
 		s.mu.Lock()
 		s.kvStore[dataKv.Key] = dataKv.Val
 		s.mu.Unlock()
+		s.W.Trigger(dataKv.ID, struct{}{})
 	}
 	if err, ok := <-errorC; ok {
 		log.Fatal(err)

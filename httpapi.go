@@ -15,11 +15,16 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"encoding/gob"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/coreos/etcd/pkg/wait"
 	"github.com/coreos/etcd/raft/raftpb"
 )
 
@@ -27,6 +32,8 @@ import (
 type httpKVAPI struct {
 	store       *kvstore
 	confChangeC chan<- raftpb.ConfChange
+	raftNode    *raftNode
+	W           wait.Wait
 }
 
 func (h *httpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -41,8 +48,22 @@ func (h *httpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.store.Propose(key, string(v))
+		var buf bytes.Buffer
+		id := uint64(time.Now().Unix())
+		if err := gob.NewEncoder(&buf).Encode(kv{Key: key, Val: string(v), ID: id}); err != nil {
+			http.Error(w, "Failed to encode "+err.Error(), http.StatusBadRequest)
+			return
+		}
 
+		// 同步加载
+		c := h.W.Register(id)
+		h.raftNode.node.Propose(context.Background(), buf.Bytes())
+		select {
+		case <-c:
+			log.Printf("HTTApi recv chan")
+		}
+
+		// h.store.Propose(key, string(v))
 		// Optimistic-- no waiting for ack from raft. Value is not yet
 		// committed so a subsequent GET on the key may return old value
 		w.WriteHeader(http.StatusNoContent)
@@ -102,12 +123,14 @@ func (h *httpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveHttpKVAPI starts a key-value server with a GET/PUT API and listens.
-func serveHttpKVAPI(kv *kvstore, port int, confChangeC chan<- raftpb.ConfChange, errorC <-chan error) {
+func serveHttpKVAPI(kv *kvstore, port int, confChangeC chan<- raftpb.ConfChange, errorC <-chan error, node *raftNode, w wait.Wait) {
 	srv := http.Server{
 		Addr: ":" + strconv.Itoa(port),
 		Handler: &httpKVAPI{
 			store:       kv,
 			confChangeC: confChangeC,
+			raftNode:    node,
+			W:           w,
 		},
 	}
 	go func() {

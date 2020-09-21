@@ -11,7 +11,7 @@ require (
 	github.com/prometheus/client_golang v1.7.1 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	go.etcd.io/etcd v3.3.25+incompatible
-	go.uber.org/zap v1.16.0
+	go.uber.org/zap v1.16.0 // indirect
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	google.golang.org/grpc v1.32.0 // indirect
 )

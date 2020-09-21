@@ -2,6 +2,8 @@
 
 官方给的 demo 是异步返回的，现在改为同步返回。
 
+参考 Etcd 成功写入数据后，通过 wait 触发。
+
 # raftexample
 
 raftexample is an example usage of etcd's [raft library](../../raft). It provides a simple REST API for a key-value store cluster backed by the [Raft][raft] consensus algorithm.
